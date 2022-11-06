@@ -3,6 +3,7 @@
 
 #include "AI.h"
 #include "Board.h"
+#include "climits"
 
 #pragma once
 
