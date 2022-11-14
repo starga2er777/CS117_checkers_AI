@@ -61,11 +61,10 @@ int StudentAI::eval(const Board &cur_board, const int ai_player) {
     for (int i = 0; i < cur_board.row; ++i) {
         for (int j = 0; j < cur_board.col; ++j) {
             Checker checker = cur_board.board[i][j];
-            if (checker.color == ((ai_player == 1) ? "W" : "B"))
+            if (checker.color == ((ai_player == 1) ? "B" : "W"))
                 res += checker.isKing ? 2 : 1;
-            else if (checker.color == ((ai_player == 1) ? "B" : "W"))
+            else if (checker.color == ((ai_player == 1) ? "W" : "B"))
                 res -= checker.isKing ? 2 : 1;
-
         }
     }
     return res;
