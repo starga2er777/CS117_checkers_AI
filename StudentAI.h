@@ -25,7 +25,7 @@ class ReturnObj{
 public:
     int value;
     Move move;
-    ReturnObj(int val, Move move) : value(val), move(move){};
+    ReturnObj(int val, const Move& move) : value(val), move(move){};
 };
 
 class StudentAI : public AI {
@@ -42,9 +42,10 @@ public:
 
     ReturnObj searchTree(Node *node, int alpha, int beta) const;
 
-    static int eval(const Board &cur_board, const int ai_player);
+    static int eval(const Board &cur_board, int ai_player);
 
     int max_depth;
+
 };
 
 #endif //STUDENTAI_H

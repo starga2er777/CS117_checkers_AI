@@ -9,7 +9,7 @@ StudentAI::StudentAI(int col, int row, int p)
     board.initializeGame();
     player = 2;
     // set the max depth so that it finishes in a proper time
-    max_depth = 3;
+    max_depth = 4;
 }
 
 Move StudentAI::GetMove(Move move) {
@@ -55,16 +55,29 @@ void StudentAI::buildTree(Node *cur_node, Board &cur_board) {
     }
 }
 
-// Evaluate: black pawn +1, king +2; white pawn -1, king -2.
+// Evaluate
 int StudentAI::eval(const Board &cur_board, const int ai_player) {
+    string ai_color = ai_player == 1 ? "B" : "W";
+    string opponent_color = ai_player == 1 ? "W" : "B";
     int res = 0;
+    int pawn_value = 3;
+    int king_value = 6;
     for (int i = 0; i < cur_board.row; ++i) {
         for (int j = 0; j < cur_board.col; ++j) {
             Checker checker = cur_board.board[i][j];
-            if (checker.color == ((ai_player == 1) ? "B" : "W"))
-                res += checker.isKing ? 2 : 1;
-            else if (checker.color == ((ai_player == 1) ? "W" : "B"))
-                res -= checker.isKing ? 2 : 1;
+            if (checker.color == ai_color) {
+                // king's value - border punishment
+                // pawn's value + position bonus
+                if (checker.isKing)
+                    res += king_value - (i == 0 || i == cur_board.row - 1);
+                else
+                    res += pawn_value + (ai_player == 1 ? (i > cur_board.row / 2) : (i < cur_board.row / 2));
+            } else if (checker.color == opponent_color) {
+                if (checker.isKing)
+                    res -= king_value - (i == 0 || i == cur_board.row - 1);
+                else
+                    res -= pawn_value + (ai_player == 1 ? (i < cur_board.row / 2) : (i > cur_board.row / 2));
+            }
         }
     }
     return res;
