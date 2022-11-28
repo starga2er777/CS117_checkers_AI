@@ -1,125 +1,61 @@
 #include "ManualAI.h"
 #include <iostream>
+#include "random"
 
 ManualAI::ManualAI(int col, int row, int p)
-	:AI(col, row, p)
+        :AI(col, row, p)
 {
     board = Board(col,row,p);
     board.initializeGame();
     player = 2;
-
-    max_depth = 4;
 }
 
-Move ManualAI::GetMove(Move move) {
-    if (move.seq.empty()) {
+Move ManualAI::GetMove(Move move)
+{
+
+//    if (move.seq.empty())
+//    {
+//        player = 1;
+//    } else{
+//        board.makeMove(move, (player == 1) ? 2 : 1);
+//    }
+//    vector<vector<Move> > moves = board.getAllPossibleMoves(player);
+//
+//    for (int i = 0; i < moves.size();i++)
+//    {
+//        cout<<i<<" : [";
+//        for (int j = 0; j < moves[i].size();j++)
+//        {
+//            cout<<j<<" : "<<moves[i][j].toString()<<", ";
+//        }
+//        cout<<"]"<<endl;
+//    }
+//    cout<<"Waiting input {int} {int}: ";
+//    int n = -1;
+//    int m = -1;
+//    do {
+//        cin >> n;
+//        cin >> m;
+//        if ((n < 0 || n >= moves.size()) || (m < 0 || m >= moves[n].size()))
+//            cout << "Invalid move" << "\n" << "Waiting for input {int} {int}: ";
+//    } while ((n < 0 || n >= moves.size()) || (m < 0 || m >= moves[n].size()));
+//    Move res = moves[n][m];
+//    board.makeMove(res,player);
+//    return res;
+    if (move.seq.empty())
+    {
         player = 1;
-    } else {
-        board.makeMove(move, player == 1 ? 2 : 1);
+    } else{
+        board.makeMove(move,player == 1?2:1);
     }
-    Node *root = new Node(eval(board, player), 0, true);
-    buildTree(root, board);
-
-    ReturnObj result = searchTree(root, INT_MIN, INT_MAX);
-    Move res = result.move;
-    board.makeMove(res, player);
-    deleteTree(root);
-
+    vector<vector<Move> > moves = board.getAllPossibleMoves(player);
+    int i = rand() % (moves.size());
+    vector<Move> checker_moves = moves[i];
+    int j = rand() % (checker_moves.size());
+    Move res = checker_moves[j];
+    board.makeMove(res,player);
     return res;
+
 }
 
-// build the min/max tree
-void ManualAI::buildTree(Node *cur_node, Board &cur_board) {
-    // jump out of recursion if depth > max depth
-    if (cur_node->depth >= max_depth)
-        return;
 
-    // determine next player
-    int nxt_player = cur_node->is_max ? player : 3 - player;
-
-    vector<vector<Move>> moves = cur_board.getAllPossibleMoves(nxt_player);
-    for (auto &move_list: moves) {
-        for (auto &nxt_move: move_list) {
-            // copy board
-            Board temp_board = cur_board;
-            temp_board.makeMove(nxt_move, nxt_player);
-            // evaluate the value after that move
-            int nxt_value = eval(temp_board, player);
-            Node *child = new Node(nxt_value, cur_node->depth + 1, !cur_node->is_max);
-            child->last_move = nxt_move;
-            // build child
-            buildTree(child, temp_board);
-            cur_node->children.push_back(child);
-        }
-    }
-}
-
-// Evaluate
-int ManualAI::eval(const Board &cur_board, const int ai_player) {
-    string ai_color = ai_player == 1 ? "B" : "W";
-    string opponent_color = ai_player == 1 ? "W" : "B";
-    int res = 0;
-    int pawn_value = 3;
-    int king_value = 5;
-    for (int i = 0; i < cur_board.row; ++i) {
-        for (int j = 0; j < cur_board.col; ++j) {
-            Checker checker = cur_board.board[i][j];
-            if (checker.color == ai_color) {
-                // king's value - border punishment
-                // pawn's value + position bonus
-                if (checker.isKing)
-                    res += king_value;
-                else
-                    res += pawn_value;
-            } else if (checker.color == opponent_color) {
-                if (checker.isKing)
-                    res -= king_value;
-                else
-                    res -= pawn_value;
-            }
-        }
-    }
-    return res;
-}
-
-// MINMAX
-ReturnObj ManualAI::searchTree(Node *node, int alpha, int beta) const {
-    if (node->depth >= max_depth)
-        return {node->value, node->last_move};
-    ReturnObj return_obj(node->value, node->last_move);
-    if (node->is_max) {
-        // max node
-        int best_value = INT_MIN;
-        for (auto &i: node->children) {
-            ReturnObj obj = searchTree(i, alpha, beta);
-            if (obj.value > best_value) {
-                return_obj.value = i->value;
-                return_obj.move = i->last_move;
-                best_value = obj.value;
-            }
-            alpha = max(alpha, best_value);
-            if (beta <= alpha) break;
-        }
-    } else {
-        // min node
-        int best_value = INT_MAX;
-        for (auto &i: node->children) {
-            ReturnObj obj = searchTree(i, alpha, beta);
-            if (obj.value < best_value) {
-                return_obj.value = i->value;
-                return_obj.move = i->last_move;
-                best_value = obj.value;
-            }
-            beta = min(beta, best_value);
-            if (beta <= alpha) break;
-        }
-    }
-    return return_obj;
-}
-
-// release memory
-void ManualAI::deleteTree(Node *node) {
-    if (!node) return;
-    for (auto &i: node->children) deleteTree(i);
-    delete node;
-}

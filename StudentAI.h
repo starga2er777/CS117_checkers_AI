@@ -4,48 +4,85 @@
 #include "AI.h"
 #include "Board.h"
 #include "climits"
+#include <chrono>
+#include <ctime>
+#include "random"
+#include "unordered_map"
+#include "algorithm"
+#include <cmath>
 
 #pragma once
 
+using namespace std;
 //The following part should be completed by students.
 //Students can modify anything except the class name and existing functions and variables.
 
-class Node {
+class RandomGen {
 public:
-    int value;
-    int depth;
-    vector<Node *> children;
-    Move last_move;
-    bool is_max;
-
-    Node(int value, int depth, bool is_max) : value(value), depth(depth), is_max(is_max) {};
+    static int getRandomInt(const unsigned long long max_val, const int min_val = 1) {
+        random_device rd;
+        default_random_engine eng{rd()};
+        uniform_int_distribution<int> dist(min_val, max_val);
+        return dist(eng) - 1;
+    }
 };
 
-class ReturnObj{
+
+class Node {
 public:
-    int value;
+    vector<Node *> children;
+    Node *parent;
+    // the move that result this node
+    Board board;
+    int unfinished_num;
+    // player# to take this move
+    int player;
     Move move;
-    ReturnObj(int val, const Move& move) : value(val), move(move){};
+    vector<Move> unexpanded_moves;
+
+    float wins;
+    float visits;
+
+    Node(Board &new_board, int player) : parent(nullptr), board(new_board), player(player), wins(0), visits(0) {
+        unfinished_num = 0;
+        vector<vector<Move>> all_moves = this->board.getAllPossibleMoves(player);
+        for (auto &all_move: all_moves) {
+            for (auto &tmp_move: all_move) {
+                unexpanded_moves.push_back(tmp_move);
+                ++unfinished_num;
+            }
+        }
+    };
+
+    Node *expand(Move &expand_move);
+
+    void propagateComplete();
 };
 
 class StudentAI : public AI {
 public:
+    static const float c;
+    static int ai_player;
     Board board;
+    double computeTime;
 
     StudentAI(int col, int row, int p);
 
-    virtual Move GetMove(Move board);
+    Move GetMove(Move board) override;
 
-    void buildTree(Node *cur_node, Board &cur_board);
+    Move Monte_Carlo_Tree_Search();
 
-    void deleteTree(Node *node);
+    static float simulate(Node *cur_node);
 
-    ReturnObj searchTree(Node *node, int alpha, int beta) const;
+    static void backPropagation(Node *node, float val);
 
-    static int eval(const Board &cur_board, int ai_player);
-
-    int max_depth;
-
+    static Move chooseBest(Node *root);
 };
+
+Node *select(Node *root);
+
+inline int getOpponent(const int player) {
+    return 3 - player;
+}
 
 #endif //STUDENTAI_H

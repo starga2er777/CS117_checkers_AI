@@ -1,5 +1,8 @@
 #include "StudentAI.h"
-#include <random>
+
+// static members:
+int StudentAI::ai_player;
+const float StudentAI::c = 0.5f;
 
 // The following part should be completed by students.
 // The students can modify anything except the class name and exisiting functions and varibles.
@@ -8,8 +11,8 @@ StudentAI::StudentAI(int col, int row, int p)
     board = Board(col, row, p);
     board.initializeGame();
     player = 2;
-    // set the max depth so that it finishes in a proper time
-    max_depth = 4;
+    // set max simulation time (s)
+    computeTime = 3.0;
 }
 
 Move StudentAI::GetMove(Move move) {
@@ -18,109 +21,151 @@ Move StudentAI::GetMove(Move move) {
     } else {
         board.makeMove(move, player == 1 ? 2 : 1);
     }
-    Node *root = new Node(eval(board, player), 0, true);
-    buildTree(root, board);
-
-    ReturnObj result = searchTree(root, INT_MIN, INT_MAX);
-    Move res = result.move;
-    board.makeMove(res, player);
-    deleteTree(root);
-
+    ai_player = player;
+    Move res = Monte_Carlo_Tree_Search();
     return res;
 }
 
-// build the min/max tree
-void StudentAI::buildTree(Node *cur_node, Board &cur_board) {
-    // jump out of recursion if depth > max depth
-    if (cur_node->depth >= max_depth)
+Move StudentAI::Monte_Carlo_Tree_Search() {
+    Node *root;
+    root = new Node(this->board, this->player);
+    // set the start node as the root
+    root->parent = nullptr;
+    auto start = chrono::system_clock::now();
+    int sim_cnt = 0;
+    while ((chrono::duration<double>(chrono::system_clock::now() - start).count() < computeTime) and
+           root->unfinished_num > 0) {
+//    while (root->unfinished_num > 0) {
+        Node *node = select(root);
+        float simulation_result = simulate(node);
+        backPropagation(node, simulation_result);
+        ++sim_cnt;
+    }
+    // printf("%d simulations processed.\n", sim_cnt);
+    Move result_move = chooseBest(root);
+    board.makeMove(result_move, player);
+    return result_move;
+}
+
+float StudentAI::simulate(Node *cur_node) {
+    // copy game board
+    Board cur_board = cur_node->board;
+    int turn = cur_node->player;
+    while (true) {
+        int res = cur_board.isWin(turn);
+        // if game is over
+        if (res != 0) {
+            if (res == ai_player)
+                return 1.0f;
+            else if (res == -1)
+                return 0.5f;
+            else {
+                return 0.0f;
+            }
+        }
+        vector<vector<Move>> valid_moves = cur_board.getAllPossibleMoves(turn);
+        int idx_1 = RandomGen::getRandomInt(valid_moves.size());
+        int idx_2 = RandomGen::getRandomInt(valid_moves[idx_1].size());
+        // get a random move
+        Move picked_move = valid_moves[idx_1][idx_2];
+
+        cur_board.makeMove(picked_move, turn);
+        turn = getOpponent(turn);
+    }
+}
+
+void StudentAI::backPropagation(Node *node, float val) {
+    Node *cur_node = node;
+    while (cur_node->parent) {
+        cur_node->visits += 1;
+        cur_node->wins += val;
+        cur_node = cur_node->parent;
+    }
+
+    // repeat for root
+    cur_node->visits += 1;
+    cur_node->wins += val;
+}
+
+Move StudentAI::chooseBest(Node *root) {
+    float max_wins = -1;
+    float max_visits = -1;
+    Move res;
+    for (auto &i: root->children) {
+        float child_wins = i->wins;
+        float child_visits = i->visits;
+
+        if (child_visits > max_visits) {
+            max_visits = child_visits;
+            max_wins = child_wins;
+            res = i->move;
+        } else if (child_visits == max_visits) {
+            if (child_wins > max_wins) {
+                max_wins = child_wins;
+                res = i->move;
+            }
+        }
+    }
+    return res;
+}
+
+
+Node *select(Node *root) {
+    while (root->unfinished_num > 0) {
+        auto moves = root->board.getAllPossibleMoves(root->player);
+        if (root->board.isWin(root->player)) {
+            // game over
+            root->propagateComplete();
+            return root;
+        } else if (root->unfinished_num > root->children.size()) {
+            // expand a child node
+            int rand_idx = RandomGen::getRandomInt(root->unexpanded_moves.size());
+            auto it = root->unexpanded_moves.begin();
+            for (int i = 0; i < rand_idx; ++i)
+                it++;
+            Move nxt_move = *it;
+            // expand this unexpanded move
+            root->unexpanded_moves.erase(it);
+            // create child node
+            Node *new_child = root->expand(nxt_move);
+            new_child->parent = root;
+            // TODO: add next start state
+            return new_child;
+        } else {
+            // pick the most ideal child from all expanded child (UCB)
+            bool is_opponent = root->player != StudentAI::ai_player;
+            float node_visits = root->visits;
+            vector<double> values;
+            for (Node *child: root->children) {
+                float visits = child->visits;
+                float wins = is_opponent ? visits - child->wins : child->wins;
+                values.push_back(((double) wins / visits) + StudentAI::c * sqrt(log(node_visits) / visits));
+            }
+            long long idx = max_element(values.begin(), values.end()) - values.begin();
+            return root->children[idx];
+        }
+    }
+    return nullptr;
+}
+
+// After all children of this move have been expanded to completion, tell the parent that it has one fewer expandable children
+void Node::propagateComplete() {
+    if (!parent)
         return;
 
-    // determine next player
-    int nxt_player = cur_node->is_max ? player : 3 - player;
+    if (!unexpanded_moves.empty())
+        --unfinished_num;
 
-    vector<vector<Move>> moves = cur_board.getAllPossibleMoves(nxt_player);
-    for (auto &move_list: moves) {
-        for (auto &nxt_move: move_list) {
-            // copy board
-            Board temp_board = cur_board;
-            temp_board.makeMove(nxt_move, nxt_player);
-            // evaluate the value after that move
-            int nxt_value = eval(temp_board, player);
-            Node *child = new Node(nxt_value, cur_node->depth + 1, !cur_node->is_max);
-            child->last_move = nxt_move;
-            // build child
-            buildTree(child, temp_board);
-            cur_node->children.push_back(child);
-        }
-    }
+    parent->propagateComplete();
 }
 
-// Evaluate
-int StudentAI::eval(const Board &cur_board, const int ai_player) {
-    string ai_color = ai_player == 1 ? "B" : "W";
-    string opponent_color = ai_player == 1 ? "W" : "B";
-    int res = 0;
-    int pawn_value = 3;
-    int king_value = 6;
-    for (int i = 0; i < cur_board.row; ++i) {
-        for (int j = 0; j < cur_board.col; ++j) {
-            Checker checker = cur_board.board[i][j];
-            if (checker.color == ai_color) {
-                // king's value - border punishment
-                // pawn's value + position bonus
-                if (checker.isKing)
-                    res += king_value - (i == 0 || i == cur_board.row - 1);
-                else
-                    res += pawn_value + (ai_player == 1 ? (i > cur_board.row / 2) : (i < cur_board.row / 2));
-            } else if (checker.color == opponent_color) {
-                if (checker.isKing)
-                    res -= king_value - (i == 0 || i == cur_board.row - 1);
-                else
-                    res -= pawn_value + (ai_player == 1 ? (i < cur_board.row / 2) : (i > cur_board.row / 2));
-            }
-        }
-    }
-    return res;
+// expand a move: add a new child
+Node *Node::expand(Move &expand_move) {
+    Board new_board = this->board;
+    new_board.makeMove(expand_move, this->player);
+    Node *child_node = new Node(new_board, getOpponent(this->player));
+    child_node->move = expand_move;
+    this->children.push_back(child_node);
+    return child_node;
 }
 
-// MINMAX
-ReturnObj StudentAI::searchTree(Node *node, int alpha, int beta) const {
-    if (node->depth >= max_depth)
-        return {node->value, node->last_move};
-    ReturnObj return_obj(node->value, node->last_move);
-    if (node->is_max) {
-        // max node
-        int best_value = INT_MIN;
-        for (auto &i: node->children) {
-            ReturnObj obj = searchTree(i, alpha, beta);
-            if (obj.value > best_value) {
-                return_obj.value = i->value;
-                return_obj.move = i->last_move;
-                best_value = obj.value;
-            }
-            alpha = max(alpha, best_value);
-            if (beta <= alpha) break;
-        }
-    } else {
-        // min node
-        int best_value = INT_MAX;
-        for (auto &i: node->children) {
-            ReturnObj obj = searchTree(i, alpha, beta);
-            if (obj.value < best_value) {
-                return_obj.value = i->value;
-                return_obj.move = i->last_move;
-                best_value = obj.value;
-            }
-            beta = min(beta, best_value);
-            if (beta <= alpha) break;
-        }
-    }
-    return return_obj;
-}
-
-// release memory
-void StudentAI::deleteTree(Node *node) {
-    if (!node) return;
-    for (auto &i: node->children) deleteTree(i);
-    delete node;
-}
