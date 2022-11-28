@@ -65,6 +65,7 @@ public:
     static int ai_player;
     Board board;
     double computeTime;
+    static vector<Node *> start_nodes;
 
     StudentAI(int col, int row, int p);
 

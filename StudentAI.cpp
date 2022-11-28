@@ -2,17 +2,18 @@
 
 // static members:
 int StudentAI::ai_player;
-const float StudentAI::c = 0.5f;
+const float StudentAI::c = 2.5f;
+vector<Node *> StudentAI::start_nodes;
 
 // The following part should be completed by students.
-// The students can modify anything except the class name and exisiting functions and varibles.
+// The students can modify anything except the class name and existing functions and variables.
 StudentAI::StudentAI(int col, int row, int p)
         : AI(col, row, p) {
     board = Board(col, row, p);
     board.initializeGame();
     player = 2;
     // set max simulation time (s)
-    computeTime = 3.0;
+    computeTime = 2.0f;
 }
 
 Move StudentAI::GetMove(Move move) {
@@ -52,7 +53,7 @@ float StudentAI::simulate(Node *cur_node) {
     Board cur_board = cur_node->board;
     int turn = cur_node->player;
     while (true) {
-        int res = cur_board.isWin(turn);
+        int res = cur_board.isWin(getOpponent(turn));
         // if game is over
         if (res != 0) {
             if (res == ai_player)
@@ -64,12 +65,10 @@ float StudentAI::simulate(Node *cur_node) {
             }
         }
         vector<vector<Move>> valid_moves = cur_board.getAllPossibleMoves(turn);
+        // get a random move
         int idx_1 = RandomGen::getRandomInt(valid_moves.size());
         int idx_2 = RandomGen::getRandomInt(valid_moves[idx_1].size());
-        // get a random move
-        Move picked_move = valid_moves[idx_1][idx_2];
-
-        cur_board.makeMove(picked_move, turn);
+        cur_board.makeMove(valid_moves[idx_1][idx_2], turn);
         turn = getOpponent(turn);
     }
 }
@@ -139,6 +138,7 @@ Node *select(Node *root) {
             for (Node *child: root->children) {
                 float visits = child->visits;
                 float wins = is_opponent ? visits - child->wins : child->wins;
+                //values.push_back(((double) wins / visits) + StudentAI::c * sqrt(2.0f * log(node_visits) / visits));
                 values.push_back(((double) wins / visits) + StudentAI::c * sqrt(log(node_visits) / visits));
             }
             long long idx = max_element(values.begin(), values.end()) - values.begin();
